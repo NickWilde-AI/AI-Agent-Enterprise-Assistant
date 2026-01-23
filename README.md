@@ -12,31 +12,7 @@
 
 本系统采用 **ReAct 范式** 的 Agent 架构，通过 LangChain 编排，LlamaIndex 处理知识检索，并遵循 MCP 标准连接业务数据。
 
-```mermaid
-graph TD
-    User([用户 User]) <--> UI[Streamlit 交互界面]
-    UI <--> Agent[LangChain Agent (ReAct)]
-    
-    subgraph "Brain (DeepSeek-V3)"
-        Agent -- "思考与规划" --> LLM((LLM))
-    end
-    
-    subgraph "Tools (工具层)"
-        Agent -- "查文档" --> RAG[RAG 检索引擎]
-        Agent -- "查数据" --> MCP[MCP Server]
-        Agent -- "写操作" --> Ticket[工单系统]
-    end
-    
-    subgraph "Knowledge Base (知识库)"
-        RAG -- "向量匹配" --> Chroma[(Vector DB)]
-        Chroma -- "加载" --> Docs[Excel / PDF / Markdown]
-    end
-    
-    subgraph "Business Data (业务数据)"
-        MCP -- "SQL查询" --> DB[(SQLite 员工库)]
-        MCP -- "API调用" --> JSON[项目状态 API]
-    end
-```
+
 
 ## ✨ 核心功能 (Key Features)
 
