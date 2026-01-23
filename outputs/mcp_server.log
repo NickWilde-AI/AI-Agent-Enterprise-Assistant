@@ -1,0 +1,12 @@
+INFO:     Started server process [51686]
+INFO:     Waiting for application startup.
+[01/17/26 00:09:41] INFO     StreamableHTTP       streamable_http_manager.py:115
+                             session manager                                    
+                             started                                            
+INFO:     Application startup complete.
+ERROR:    [Errno 1] error while attempting to bind on address ('127.0.0.1', 8000): operation not permitted
+INFO:     Waiting for application shutdown.
+                    INFO     StreamableHTTP       streamable_http_manager.py:119
+                             session manager                                    
+                             shutting down                                      
+INFO:     Application shutdown complete.
