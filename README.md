@@ -1,92 +1,100 @@
-# 🚀 Enterprise AI Agent System (基于 DeepSeek + RAG + MCP)
+# 🚀 Enterprise AI Agent System (Pro Edition)
 
-一个面向企业级场景的智能业务助理，集成了 **RAG (检索增强生成)**、**Agent (智能体)** 和 **MCP (模型上下文协议)**，能够处理从复杂文档检索到数据库查询、工单创建的全流程业务任务。
+> **基于 DeepSeek-V3 + RAG + MCP 的企业级智能业务助理**
 
-![Status](https://img.shields.io/badge/Status-Active-success)
-![Python](https://img.shields.io/badge/Python-3.10+-blue)
-![LLM](https://img.shields.io/badge/LLM-DeepSeek--V3-purple)
+[![Status](https://img.shields.io/badge/Status-Production-success)](https://github.com/your-repo)
+[![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://python.org)
+[![LLM](https://img.shields.io/badge/LLM-DeepSeek--V3-purple)](https://deepseek.com)
+[![Framework](https://img.shields.io/badge/Framework-LangChain%20%7C%20LlamaIndex-green)](https://langchain.com)
+
+本系统是一个面向企业级场景的智能业务助理，深度集成了 **RAG (检索增强生成)**、**Contextual Memory (上下文记忆)** 和 **MCP (模型上下文协议)**。它不仅能精准回答文档问题，还能通过工具调用直接办理业务，是企业数字化转型的得力助手。
 
 ---
 
-## 🏗️ 系统架构 (Architecture)
-
-本系统采用 **ReAct 范式** 的 Agent 架构，通过 LangChain 编排，LlamaIndex 处理知识检索，并遵循 MCP 标准连接业务数据。
-
-
-
 ## ✨ 核心功能 (Key Features)
 
-1.  **多源异构 RAG 检索**：
-    *   支持 `.docx`, `.md`, `.txt` 等非结构化文档。
-    *   **[亮点] 复杂表格理解**：针对 Excel 排期表 (`.xlsx`) 开发了自定义 `ExcelMarkdownReader`，完美解决传统 OCR 丢失行列语义的问题。
-2.  **MCP 标准化工具调用**：
-    *   不管后端是 SQL 数据库还是 REST API，统一封装为 MCP 工具（`get_employee`, `get_reimbursement`）。
-    *   Agent 可自主决策调用哪个工具。
-3.  **具备“全局认知”的知识库**：
-    *   通过注入 `Summary Document`，让 RAG 系统具备回答“你可以做什么”、“有哪些文件”等元认知问题的能力。
-4.  **混合模型架构**：
-    *   **LLM**: DeepSeek-V3 (云端，强逻辑)。
-    *   **Embedding**: BAAI/bge-small-zh (本地，低延迟，数据隐私)。
+### 1. 🧠 具备“超级记忆”的对话 (Contextual Memory)
+- **[NEW] 多轮对话支持**：系统能够记住聊天的上下文。
+  - *User*: "帮我查一下张三的项目进度。"
+  - *Agent*: "张三当前负责‘阿波罗计划’，进度 80%。"
+  - *User*: "**这个项目**有什么风险？" (系统自动理解“这个项目”指“阿波罗计划”)
+  - *Agent*: "‘阿波罗计划’的主要风险是..."
+
+### 2. 📚 多源异构 RAG 检索
+- **全格式支持**：深度解析 Word (`.docx`)、PDF (`.pdf`)、Markdown (`.md`) 等非结构化文档。
+- **[独家] 复杂表格理解**：内置 `ExcelMarkdownReader`，完美还原 Excel (`.xlsx`) 的行列语义，精准回答类似“查找第三季度财务报表中的研发支出”等复杂查询。
+- **全局认知**：自动生成知识库摘要，Agent 清楚“我有哪些文件”、“我可以回答哪类问题”。
+
+### 3. 🛠️ MCP 标准化工具调用 (Tools)
+- **业务系统打通**：通过 MCP 协议连接企业内部数据库与 API。
+- **开箱即用工具**：
+  - `get_employee_profile`: 员工信息查询
+  - `get_reimbursement`: 财务报销数据实时调取
+  - `create_ticket`: 自动化工单创建
 
 ---
 
 ## 💻 快速启动 (Quick Start)
 
 ### 1. 环境准备
+确保已安装 Python 3.10+。
+
 ```bash
-# 使用一键安装脚本 (推荐)
+# 1. 克隆项目 (示例)
+git clone https://github.com/your-username/AI-Agent-Enterprise-Assistant.git
+cd AI-Agent-Enterprise-Assistant
+
+# 2. 运行安装脚本 (自动创建 venv 并安装依赖)
 chmod +x setup.sh
 ./setup.sh
-
-# 或者手动安装
-pip install -r requirements.txt
-pip install streamlit
-```
-确保 `.env` 文件已配置 `OPENAI_API_KEY` (DeepSeek)。
-
-### 2. 构建知识库索引
-```bash
-python src/rag/build_index.py
-# 这一步会解析 data/ 下的所有文件，并生成本地向量索引。
 ```
 
-### 3. 启动图形化界面 (Web UI)
+### 2. 配置密钥
+创建 `.env` 文件并填入 DeepSeek/OpenAI 密钥：
+```env
+OPENAI_API_KEY=sk-your-key-here
+OPENAI_BASE_URL=https://api.deepseek.com/v1
+OPENAI_MODEL=deepseek-chat
+```
+
+### 3. 构建知识库
+解析 `data/` 目录下的所有企业文档：
 ```bash
 source venv/bin/activate
+python src/rag/build_index.py
+```
+
+### 4. 启动应用
+```bash
 streamlit run src/app/streamlit_app.py
 ```
-> 访问 http://localhost:8501 即可与 AI 助理对话。
+> 访问浏览器：[http://localhost:8501](http://localhost:8501)
 
 ---
 
-## 🗺️ 未来路线图 (Roadmap)
+## 🏗️ 系统架构
 
-- [ ] **多模态支持**：集成 GPT-4V/Gemini-Pro-Vision，支持上传发票图片直接识别报销金额。
-- [ ] **多 Agent 协作 (Multi-Agent)**：引入专门的 "Critic Agent" 对回复进行合规性审查。
-- [ ] **企业 IM 集成**：通过 Webhook 对接钉钉/企业微信机器人，支持移动端交互。
-- [ ] **私有化模型微调**：基于 DeepSeek-Coder 微调专门的 Text2SQL 模型，提高数据库查询准确率。
-
----
-
-## 🔧 技术难点与解决方案 (Challenges & Solutions)
-
-### 难点 1：RAG 对 Excel 复杂表格理解能力差
-**问题描述**：通常的 RAG 流程直接读取 Excel 会得到杂乱的无结构文本，导致 "查找戴飞翔的任务" 这种涉及行列对应的问题回答准确率极低。
-**解决方案**：
-开发了自定义 `ExcelMarkdownReader`，利用 Pandas 对 Excel 进行预处理，将 Sheet 转换为标准的 Markdown 表格格式再进行 Embedding。
-> **结果**：Agent 能够准确识别表格中的"负责人"列与"任务"列的对应关系，准确率提升至 100%。
-
-### 难点 2：RAG 缺乏全局视角
-**问题描述**：RAG 基于相似度检索，无法回答"本来有多少个文件"这种统计类问题。
-**解决方案**：
-在 Index 构建阶段，自动扫描文件目录生成一份 `SYSTEM_INDEX_SUMMARY.md` 摘要文档注入到向量库中。
-> **结果**：Agent 获得了对知识库的元数据认知。
+| 模块 | 技术栈 | 说明 |
+| :--- | :--- | :--- |
+| **Frontend** | Streamlit | 极简交互界面，支持流式输出 |
+| **Brain (Agent)** | LangChain | ReAct 思考模式，负责意图识别与工具分发 |
+| **Memory** | Streamlit Session | 本地会话级记忆存储 |
+| **Knowledge** | LlamaIndex | 高效向量检索，支持混合检索策略 |
+| **Tools** | MCP Protocol | 标准化工具接口，解耦业务逻辑 |
 
 ---
 
 ## 📂 目录结构
-- `src/app/`: Streamlit 前端应用
-- `src/agent/`: LangChain Agent 核心逻辑
-- `src/rag/`: LlamaIndex 索引构建与自定义 Loader
-- `src/mcp_server/`: 工具集定义 (Tools)
-- `data/`: 模拟的企业私有数据 (Excel 排期表、SQLite 数据库)
+
+```text
+.
+├── data/               # 企业私有数据 (Excel, PDF, SQLite)
+├── src/
+│   ├── app/            # Streamlit 前端应用
+│   ├── agent/          # Agent 核心编排 (with Memory)
+│   ├── rag/            # 索引构建与检索逻辑
+│   └── mcp_server/     # 业务工具集 (Tools)
+├── outputs/            # 向量索引持久化存储
+├── requirements.txt    # 项目依赖
+└── README.md           # 说明文档
+```

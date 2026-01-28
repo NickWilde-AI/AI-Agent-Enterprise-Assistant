@@ -9,8 +9,8 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 
 ROOT = Path(__file__).resolve().parents[2]
-DB_PATH = ROOT / "data" / "company.db"
-PROJECT_STATUS_PATH = ROOT / "data" / "project_status.json"
+DB_PATH = ROOT / "company.db"
+PROJECT_STATUS_PATH = ROOT / "project_status.json"
 TICKETS_PATH = ROOT / "outputs" / "tickets.json"
 
 mcp = FastMCP(name="enterprise-assistant-mcp", instructions="Enterprise assistant tools")

@@ -1,73 +1,43 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
-from pathlib import Path
 from typing import Any
 
 import anyio
-from langchain.agents import AgentExecutor, create_structured_chat_agent
+from langchain.agents import AgentExecutor
 from langchain.agents.structured_chat.output_parser import StructuredChatOutputParser
 from langchain.prompts import ChatPromptTemplate
 from langchain.tools import StructuredTool
-from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
+from pathlib import Path
 from llama_index.core import StorageContext, VectorStoreIndex, load_index_from_storage
-from llama_index.core.embeddings import MockEmbedding
-from llama_index.core.settings import Settings
-from llama_index.embeddings.openai import OpenAIEmbedding
-from llama_index.llms.openai import OpenAI
-from mcp.client.session import ClientSession
 
+# Import from centralized config
 ROOT = Path(__file__).resolve().parents[2]
-# 自动读取 .env，避免每次手动设置环境变量。
-load_dotenv(ROOT / ".env")
+sys.path.insert(0, str(ROOT))
+from src.common.config import INDEX_DIR, get_env, setup_llama_index_settings
+
+# Delayed import for MCP tools
 sys.path.insert(0, str(ROOT / "src" / "mcp_server"))
 import server as mcp_server  # noqa: E402
 
-INDEX_DIR = ROOT / "outputs" / "rag_index"
+from mcp.client.session import ClientSession
+
 _GLOBAL_INDEX = None
 
 
-def _get_env(name: str, default: str | None = None) -> str | None:
-    """读取环境变量，若未设置则返回默认值。"""
-    value = os.getenv(name)
-    return value if value else default
-
 def _load_index() -> VectorStoreIndex:
-    """加载 RAG 索引并配置向量模型。"""
+    """加载 RAG 索引并配置向量模型（带全局缓存）。"""
     global _GLOBAL_INDEX
     if _GLOBAL_INDEX is not None:
         return _GLOBAL_INDEX
 
     print("🚀 Loading RAG Index and Embedding Model...")
-    api_key = _get_env("OPENAI_API_KEY")
-    api_base = _get_env("OPENAI_BASE_URL", "https://api.deepseek.com/v1")
-    llm_model = _get_env("OPENAI_MODEL", "deepseek-chat")
-    embed_model = _get_env("OPENAI_EMBED_MODEL", "mock")
+    # Centralized Settings setup
+    setup_llama_index_settings()
 
-    # 设置向量模型
-    if embed_model == "mock":
-        Settings.embed_model = MockEmbedding(embed_dim=384)
-    elif embed_model.startswith("local:"):
-        from llama_index.embeddings.huggingface import HuggingFaceEmbedding
-        model_name = embed_model.split("local:")[1]
-        Settings.embed_model = HuggingFaceEmbedding(model_name=model_name, device="cpu")
-    else:
-        Settings.embed_model = OpenAIEmbedding(
-            model=embed_model,
-            api_key=api_key,
-            api_base=api_base,
-        )
-    # 设置默认 LLM 配置
-    try:
-        from llama_index.llms.deepseek import DeepSeek
-        Settings.llm = DeepSeek(model=llm_model, api_key=api_key, api_base=api_base)
-    except ImportError:
-        from llama_index.llms.openai import OpenAI
-        Settings.llm = OpenAI(model=llm_model, api_key=api_key, api_base=api_base)
-
+    # 从本地磁盘加载向量索引
     storage_context = StorageContext.from_defaults(persist_dir=str(INDEX_DIR))
     _GLOBAL_INDEX = load_index_from_storage(storage_context)
     print("✅ Index loaded.")
@@ -77,7 +47,7 @@ def _load_index() -> VectorStoreIndex:
 def rag_search(query: str) -> str:
     """RAG 检索入口，返回答案与来源（JSON 字符串）。"""
     index = _load_index()
-    engine = index.as_query_engine(similarity_top_k=3)
+    engine = index.as_query_engine(similarity_top_k=5)
     response = engine.query(query)
     sources = []
     for node in response.source_nodes:
@@ -85,7 +55,7 @@ def rag_search(query: str) -> str:
         file_name = meta.get("file_name", "unknown")
         snippet = node.node.get_text().strip().replace("\n", " ")[:120]
         sources.append(f"{file_name}: {snippet}...")
-    payload = {"answer": response.response, "sources": sources}
+    payload = {"answer": str(response), "sources": sources}
     return json.dumps(payload, ensure_ascii=False)
 
 
@@ -96,7 +66,6 @@ def _call_mcp_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
         server_to_client_send, server_to_client_recv = anyio.create_memory_object_stream(1)
 
         async def run_server() -> None:
-            """启动 MCP Server（内存流模式）。"""
             await mcp_server.mcp._mcp_server.run(
                 client_to_server_recv,
                 server_to_client_send,
@@ -116,7 +85,6 @@ def _call_mcp_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
 
 
 def _normalize_tool_result(result: Any) -> dict[str, Any]:
-    """将 MCP 返回值转换为可 JSON 化的字典。"""
     if isinstance(result, dict):
         return result
     if hasattr(result, "structuredContent") and result.structuredContent is not None:
@@ -161,63 +129,53 @@ def build_agent() -> AgentExecutor:
     tools = [
         StructuredTool.from_function(rag_search, name="rag_search", description="检索企业知识库并返回答案与来源"),
         StructuredTool.from_function(mcp_get_employee_profile, name="get_employee_profile", description="查询员工部门和邮箱"),
-        StructuredTool.from_function(
-            mcp_get_reimbursement_summary,
-            name="get_reimbursement_summary",
-            description="查询员工某月报销总额与明细",
-        ),
-        StructuredTool.from_function(
-            mcp_get_project_status,
-            name="get_project_status",
-            description="查询项目进度与风险",
-        ),
-        StructuredTool.from_function(
-            mcp_create_ticket,
-            name="create_ticket",
-            description="创建工单记录",
-        ),
+        StructuredTool.from_function(mcp_get_reimbursement_summary, name="get_reimbursement_summary", description="查询员工某月报销总额与明细"),
+        StructuredTool.from_function(mcp_get_project_status, name="get_project_status", description="查询项目进度与风险"),
+        StructuredTool.from_function(mcp_create_ticket, name="create_ticket", description="创建工单记录"),
     ]
 
-    api_key = _get_env("OPENAI_API_KEY")
-    api_base = _get_env("OPENAI_BASE_URL", "https://api.deepseek.com/v1")
-    llm_model = _get_env("OPENAI_MODEL", "deepseek-chat")
+    api_key = get_env("OPENAI_API_KEY")
+    api_base = get_env("OPENAI_BASE_URL", "https://api.deepseek.com/v1")
+    llm_model = get_env("OPENAI_MODEL", "deepseek-chat")
 
-    # LLM 用于工具选择与生成最终回复。
     llm = ChatOpenAI(
         model=llm_model,
         temperature=0.2,
         api_key=api_key,
         base_url=api_base,
     )
-    # Structured Chat 需要格式化指令以解析工具调用的 JSON。
+    
     output_parser = StructuredChatOutputParser()
     prompt = ChatPromptTemplate.from_messages(
         [
             (
                 "system",
-                "你是企业内部智能助理。凡是涉及报销金额、员工信息、项目进度的查询，"
-                "必须调用对应的工具获取数据，再生成答复。\n"
+                "你是腾讯企业内部的智能文档与业务专家。你的目标是帮助员工高效利用知识库和业务数据。\n"
+                "行为准则：\n"
+                "1. **文档问答**：用户询问关于“文档内容、技术方案、白皮书、讲义”等问题时，请务必使用 `rag_search` 工具检索相关信息，并基于检索结果回答。\n"
+                "2. **拒绝纯闲聊**：仅在用户询问与工作/文档完全无关的通用话题（如“今天天气”、“讲个笑话”）时才拒绝。\n"
+                "3. **严谨查数**：涉及报销金额、人员信息等精确数据，必须调用 Database 工具，禁止编造。\n"
+                "\n"
                 "可用工具如下（名称列表：{tool_names}）：\n{tools}\n\n"
                 "{format_instructions}",
             ),
+            ("placeholder", "{chat_history}"),
             ("human", "{input}"),
             ("assistant", "{agent_scratchpad}"),
         ]
     ).partial(format_instructions=output_parser.get_format_instructions())
 
-    # FIX: Compatibility with newer langchain versions
     from langchain.agents.format_scratchpad import format_log_to_str
     from langchain.tools.render import render_text_description
     
-    # Pre-render tool information for the prompt
     tool_strings = render_text_description(tools)
     tool_names = ", ".join([t.name for t in tools])
     prompt = prompt.partial(tools=tool_strings, tool_names=tool_names)
     
-    # Manually constructing the agent to avoid version conflict with 'agent_scratchpad'
     agent = (
         {
             "input": lambda x: x["input"],
+            "chat_history": lambda x: x.get("chat_history", []),
             "agent_scratchpad": lambda x: format_log_to_str(x["intermediate_steps"]),
         }
         | prompt
@@ -229,7 +187,6 @@ def build_agent() -> AgentExecutor:
 
 
 def run(user_input: str) -> None:
-    """运行 Agent，并打印最终输出。"""
     executor = build_agent()
     result = executor.invoke({"input": user_input})
     print(result["output"])
