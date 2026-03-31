@@ -1,4 +1,5 @@
 # 🚀 Enterprise AI Agent System (Pro Edition)
+<!-- 说明：此 README 会随项目功能演进而更新 -->
 
 > **基于 DeepSeek-V3 + RAG + MCP 的企业级智能业务助理**
 
@@ -36,39 +37,78 @@
 
 ## 💻 快速启动 (Quick Start)
 
-### 1. 环境准备
-确保已安装 Python 3.10+。
+> 推荐使用 **Python 3.11 + venv**，并始终通过 `python -m streamlit` 启动，避免调用到系统 Python（例如 macOS 的 `/Library/Python/3.9`）。
+
+### 1. 第一次启动（只需要记一条命令）
+
+确保已安装 Python 3.11 后，直接执行：
 
 ```bash
-# 1. 克隆项目 (示例)
-git clone https://github.com/your-username/AI-Agent-Enterprise-Assistant.git
-cd AI-Agent-Enterprise-Assistant
-
-# 2. 运行安装脚本 (自动创建 venv 并安装依赖)
-chmod +x setup.sh
-./setup.sh
+./run.sh
 ```
 
-### 2. 配置密钥
-创建 `.env` 文件并填入 DeepSeek/OpenAI 密钥：
+脚本会自动完成：
+- 创建/修复 Python 3.11 虚拟环境
+- 安装依赖（仅 `requirements.txt` 变化时重装）
+- 检查 `.env`
+- **LLM API 首次检查一次**（成功后写入标记，后续默认跳过）
+- 按需重建索引（仅数据/数据库/索引脚本变化时）
+- 启动 Streamlit
+
+### 2. 配置密钥（必做）
+
+创建 `.env` 文件并填入：
+
 ```env
 OPENAI_API_KEY=sk-your-key-here
 OPENAI_BASE_URL=https://api.deepseek.com/v1
 OPENAI_MODEL=deepseek-chat
+OPENAI_EMBED_MODEL=local:BAAI/bge-small-zh-v1.5
 ```
 
-### 3. 构建知识库
-解析 `data/` 目录下的所有企业文档：
+### 3. 直接运行（唯一日常命令）
+
 ```bash
-source venv/bin/activate
-python src/rag/build_index.py
+./run.sh
 ```
 
-### 4. 启动应用
+说明：
+- 第一次运行会做一次 LLM API 检查，之后默认跳过。
+- 只有数据变化时才会重建索引。
+- 日常你只需要记住这一条命令。
+
+执行：
+
 ```bash
-streamlit run src/app/streamlit_app.py
+./run.sh
 ```
-> 访问浏览器：[http://localhost:8501](http://localhost:8501)
+
+`run.sh` 会自动完成：
+- 强制使用 Python 3.11（未安装会提示安装）
+- 自动检测并重建非 3.11 的 `venv`
+- 按需安装依赖（仅 `requirements.txt` 变化时重装）
+- 检查 `.env`
+- 检测 LLM API
+- **按需重建索引**（仅当 `data/`、`company.db` 或 `src/rag/build_index.py` 变化时）
+- 启动 Streamlit
+
+### 4. 参数（仅排查时使用）
+
+`./run.sh` 默认已覆盖日常场景，以下参数只在排查时用：
+
+```bash
+./run.sh --prepare-only   # 只准备环境，不启动
+./run.sh --reinstall      # 强制重装依赖
+./run.sh --reindex        # 强制重建索引
+./run.sh --check          # 强制执行一次 LLM API 检查
+./run.sh --no-start       # 执行完成后不启动页面
+```
+
+> 当 `data/` 或数据库有新增内容后，直接再次执行 `./run.sh` 即可自动重建索引并启动。
+
+### 5. 本地访问地址
+
+默认浏览器地址：`http://localhost:8501`（若端口占用会自动顺延）。
 
 ---
 
@@ -98,3 +138,6 @@ streamlit run src/app/streamlit_app.py
 ├── requirements.txt    # 项目依赖
 └── README.md           # 说明文档
 ```
+
+
+
